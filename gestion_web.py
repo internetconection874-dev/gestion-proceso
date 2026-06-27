@@ -15,7 +15,7 @@ SECRET_KEY = "clave_secreta_segura_2026"
 ALCANCE = ['https://www.googleapis.com/auth/drive']
 NOMBRE_CARPETA_RAIZ = "Gestion_Procesos_En_Linea"
 ARCHIVO_DATOS_NUBE = "procesos_guardados.json"
-MAX_OBLIGACIONES = 16  # Máximo de números de obligación
+MAX_OBLIGACIONES = 16
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -25,7 +25,7 @@ def sumar_dias_habiles(fecha, dias):
     actual = fecha
     while dias > 0:
         actual += timedelta(days=1)
-        if actual.weekday() < 5:  # Lunes a Viernes
+        if actual.weekday() < 5:
             dias -= 1
     return actual
 
@@ -109,7 +109,7 @@ class ConexionDrive:
             
             ruta_temp = "temp_datos.json"
             with open(ruta_temp, "w", encoding="utf-8") as f:
-                json.dump(contenido, f, indent=4, ensure_ascii=False)
+                json.dump(contenido, indent=4, ensure_ascii=False, fp=f)
             metadatos = {'name': ARCHIVO_DATOS_NUBE, 'parents': [self.id_carpeta_raiz]}
             media = MediaFileUpload(ruta_temp, mimetype='application/json')
             self.servicio.files().create(body=metadatos, media_body=media).execute()
@@ -189,7 +189,6 @@ def inicio():
     if not session.get('logueado'):
         return redirect(url_for('login'))
     procesos = drive.cargar_datos_json()
-    # Actualizar días restantes
     for p in procesos:
         if p.get("estado") == "vigente" and p.get("fecha_fin"):
             try:
@@ -349,7 +348,7 @@ def nuevo_proceso():
 
     campos_obligacion = ''.join([f'<input type="text" name="numeros_obligacion" class="form-control d-inline w-25 m-1" placeholder="N° {i+1}">' for i in range(MAX_OBLIGACIONES)])
 
-    return render_template_string(f"""
+    return render_template_string("""
     <!DOCTYPE html>
     <html lang="es">
     <head>
@@ -399,8 +398,8 @@ def nuevo_proceso():
                 </div>
 
                 <div class="col-md-12">
-                    <label>Números de obligación (máximo {MAX_OBLIGACIONES}):</label><br>
-                    {campos_obligacion}
+                    <label>Números de obligación (máximo 16):</label><br>
+                    """ + campos_obligacion + """
                 </div>
 
                 <div class="col-md-4">
@@ -516,7 +515,7 @@ def editar():
         for i in range(MAX_OBLIGACIONES)
     ])
 
-    return render_template_string(f"""
+    return render_template_string("""
     <!DOCTYPE html>
     <html lang="es">
     <head>
@@ -566,8 +565,8 @@ def editar():
                 </div>
 
                 <div class="col-md-12">
-                    <label>Números de obligación (máximo {MAX_OBLIGACIONES}):</label><br>
-                    {campos_obligacion}
+                    <label>Números de obligación (máximo 16):</label><br>
+                    """ + campos_obligacion + """
                 </div>
 
                 <div class="col-md-4">
@@ -644,76 +643,90 @@ def ver_archivos():
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     </head>
     <body class="container mt-4">
-        <h3>Archivos de: {{ proceso.nombre }} - Cédula: {{ proceso.cedula }}</h3>
-        <a href="{{ url_for('inicio') }}" class="btn btn-secondary mb-3">← Volver</a>
+        <h3>📂 Archivos de: {{ proceso.nombre }} - Cédula: {{ proceso.cedula }}</h3>
+        <a href="{{ url_for('inicio') }}" class="btn btn-secondary mb-4">← Volver al listado</a>
 
-        <div class="row g-4">
-            {% if proceso.firma_id %}
-            <div class="col-md-6">
-                <div class="card p-3">
-                    <h5>Firma</h5>
-                    <a href="{{ url_for('ver_archivo', archivo_id=proceso.firma_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver / Descargar</a>
-                </div>
+        {% if proceso.firma_id %}
+        <div class="card mb-3">
+            <div class="card-header bg-light"><strong>✍️ Firma</strong></div>
+            <div class="card-body">
+                <a href="{{ url_for('ver_archivo', archivo_id=proceso.firma_id) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                <a href="{{ url_for('descargar_archivo', archivo_id=proceso.firma_id, nombre='firma') }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
             </div>
-            {% endif %}
-
-            {% if proceso.cedula_frente_id %}
-            <div class="col-md-6">
-                <div class="card p-3">
-                    <h5>Cédula - Frente</h5>
-                    <a href="{{ url_for('ver_archivo', archivo_id=proceso.cedula_frente_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver / Descargar</a>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if proceso.cedula_reverso_id %}
-            <div class="col-md-6">
-                <div class="card p-3">
-                    <h5>Cédula - Reverso</h5>
-                    <a href="{{ url_for('ver_archivo', archivo_id=proceso.cedula_reverso_id) }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver / Descargar</a>
-                </div>
-            </div>
-            {% endif %}
-
-            {% if proceso.pdf_ids %}
-            <div class="col-md-12">
-                <div class="card p-3">
-                    <h5>Documentos PDF</h5>
-                    {% for aid in proceso.pdf_ids %}
-                        <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-secondary m-1">PDF {{ loop.index }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if proceso.videos_ids %}
-            <div class="col-md-12">
-                <div class="card p-3">
-                    <h5>Videos</h5>
-                    {% for aid in proceso.videos_ids %}
-                        <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-secondary m-1">Video {{ loop.index }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if proceso.juez_ids %}
-            <div class="col-md-12">
-                <div class="card p-3">
-                    <h5>Documentos del Juez</h5>
-                    {% for aid in proceso.juez_ids %}
-                        <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-secondary m-1">Archivo {{ loop.index }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-
-            {% if not proceso.firma_id and not proceso.cedula_frente_id and not proceso.cedula_reverso_id and not proceso.pdf_ids and not proceso.videos_ids and not proceso.juez_ids %}
-            <div class="col-12">
-                <div class="alert alert-info">Aún no hay archivos cargados en este proceso.</div>
-            </div>
-            {% endif %}
         </div>
+        {% endif %}
+
+        {% if proceso.cedula_frente_id or proceso.cedula_reverso_id %}
+        <div class="card mb-3">
+            <div class="card-header bg-light"><strong>🆔 Cédula de Identidad</strong></div>
+            <div class="card-body">
+                {% if proceso.cedula_frente_id %}
+                <p>Frente:
+                    <a href="{{ url_for('ver_archivo', archivo_id=proceso.cedula_frente_id) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                    <a href="{{ url_for('descargar_archivo', archivo_id=proceso.cedula_frente_id, nombre='cedula_frente') }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
+                </p>
+                {% endif %}
+                {% if proceso.cedula_reverso_id %}
+                <p>Reverso:
+                    <a href="{{ url_for('ver_archivo', archivo_id=proceso.cedula_reverso_id) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                    <a href="{{ url_for('descargar_archivo', archivo_id=proceso.cedula_reverso_id, nombre='cedula_reverso') }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if proceso.pdf_ids %}
+        <div class="card mb-3">
+            <div class="card-header bg-light"><strong>📄 Documentos PDF</strong></div>
+            <div class="card-body">
+                {% set contador = 1 %}
+                {% for aid in proceso.pdf_ids %}
+                <p>Archivo PDF {{ contador }}:
+                    <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                    <a href="{{ url_for('descargar_archivo', archivo_id=aid, nombre='pdf_'~contador) }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
+                </p>
+                {% set contador = contador + 1 %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if proceso.videos_ids %}
+        <div class="card mb-3">
+            <div class="card-header bg-light"><strong>🎥 Videos</strong></div>
+            <div class="card-body">
+                {% set contador = 1 %}
+                {% for aid in proceso.videos_ids %}
+                <p>Video {{ contador }}:
+                    <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                    <a href="{{ url_for('descargar_archivo', archivo_id=aid, nombre='video_'~contador) }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
+                </p>
+                {% set contador = contador + 1 %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if proceso.juez_ids %}
+        <div class="card mb-3">
+            <div class="card-header bg-light"><strong>⚖️ Documentos del Juez</strong></div>
+            <div class="card-body">
+                {% set contador = 1 %}
+                {% for aid in proceso.juez_ids %}
+                <p>Archivo {{ contador }}:
+                    <a href="{{ url_for('ver_archivo', archivo_id=aid) }}" target="_blank" class="btn btn-sm btn-outline-primary me-2">👁️ Ver</a>
+                    <a href="{{ url_for('descargar_archivo', archivo_id=aid, nombre='juez_'~contador) }}" class="btn btn-sm btn-outline-secondary">⬇️ Descargar</a>
+                </p>
+                {% set contador = contador + 1 %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not proceso.firma_id and not proceso.cedula_frente_id and not proceso.cedula_reverso_id and not proceso.pdf_ids and not proceso.videos_ids and not proceso.juez_ids %}
+        <div class="alert alert-info">Aún no hay archivos cargados en este proceso.</div>
+        {% endif %}
     </body>
     </html>
     """, proceso=proceso)
@@ -724,9 +737,21 @@ def ver_archivo(archivo_id):
         return redirect(url_for('login'))
     try:
         buffer = drive.descargar_archivo(archivo_id)
-        return send_file(buffer, download_name="archivo", as_attachment=False)
+        return send_file(buffer, as_attachment=False)
     except Exception as e:
         flash(f"❌ No se pudo abrir el archivo: {str(e)}", "danger")
+        return redirect(url_for('inicio'))
+
+@app.route('/descargar_archivo/<archivo_id>')
+def descargar_archivo(archivo_id):
+    if not session.get('logueado'):
+        return redirect(url_for('login'))
+    nombre = request.args.get('nombre', 'archivo')
+    try:
+        buffer = drive.descargar_archivo(archivo_id)
+        return send_file(buffer, download_name=f"{nombre}", as_attachment=True)
+    except Exception as e:
+        flash(f"❌ No se pudo descargar: {str(e)}", "danger")
         return redirect(url_for('inicio'))
 
 @app.route('/eliminar')
@@ -756,6 +781,7 @@ def marcar_terminado():
     flash("✅ Proceso marcado como terminado", "success")
     return redirect(url_for('inicio'))
 
+# ---------------- INICIO ADAPTADO PARA RENDER ----------------
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
